@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vigilancia · Toque de Queda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- ================= ICON SPRITE ================= -->
+  <svg class="sprite" aria-hidden="true" style="display:none">
+    <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><path d="M3.5 9a9 9 0 1 1-.4 5"/><path d="M3 4v5h5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h9"/><path d="M17 6h3"/><circle cx="15" cy="6" r="2"/><path d="M4 12h3"/><path d="M11 12h9"/><circle cx="9" cy="12" r="2"/><path d="M4 18h9"/><path d="M17 18h3"/><circle cx="15" cy="18" r="2"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3.2"/><path d="M2.5 21v-1a6 6 0 0 1 6-6h1a6 6 0 0 1 6 6v1"/><path d="M16 3.3a4 4 0 0 1 0 7.4"/><path d="M21.5 21v-1a6 6 0 0 0-3.5-5.5"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 11.5a8 8 0 0 1-11.5 7.2L4 20l1.3-5A8 8 0 1 1 21 11.5z"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 9a2 2 0 0 1 2-2h1.5L9 4.5h6L16.5 7H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 7.7-7 9-4-1.3-7-4.4-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v5h-5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 13h6l-1 8 8-11h-6z"/></symbol>
+  </svg>
+
+  <div class="app">
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">VTQ</div>
+        <div class="brand-text">
+          <strong>Vigilancia</strong>
+          <span>Toque de Queda</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="resumen"><svg class="ico"><use href="#i-dashboard"/></svg><span>Resumen</span></button>
+        <button class="nav-item" data-view="historial"><svg class="ico"><use href="#i-history"/></svg><span>Historial</span></button>
+        <button class="nav-item" data-view="config"><svg class="ico"><use href="#i-settings"/></svg><span>Configuración</span></button>
+        <button class="nav-item" data-view="numeros"><svg class="ico"><use href="#i-users"/></svg><span>Números</span></button>
+        <button class="nav-item" data-view="whatsapp"><svg class="ico"><use href="#i-message"/></svg><span>WhatsApp</span></button>
+        <button class="nav-item" data-view="camara"><svg class="ico"><use href="#i-camera"/></svg><span>Cámara en vivo</span></button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="master">
+          <div>
+            <span class="master-label">Sistema</span>
+            <span id="masterState" class="master-state">—</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="masterToggle" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="worker-line">
+          <span id="workerDot" class="status-dot off"></span>
+          <span id="workerText">Worker: —</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ================= CONTENT ================= -->
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">Resumen</h1>
+          <p class="topbar-sub">Panel de control del sistema de vigilancia</p>
+        </div>
+        <div class="topbar-right">
+          <span class="live"><span class="live-dot"></span>EN VIVO</span>
+          <span id="clock" class="clock">--:--:--</span>
+          <button id="refreshBtn" class="btn ghost icon-only" title="Actualizar"><svg class="ico"><use href="#i-refresh"/></svg></button>
+        </div>
+      </header>
+
+      <!-- ---------- RESUMEN ---------- -->
+      <section id="view-resumen" class="view active">
+        <div class="cards">
+          <div class="card stat">
+            <div class="stat-icon i-wa"><svg class="ico"><use href="#i-message"/></svg></div>
+            <div class="stat-body">
+              <span class="stat-label">WhatsApp</span>
+              <span id="statWa" class="stat-value">—</span>
+              <span id="statWaSub" class="stat-sub">Evolution API</span>
+            </div>
+          </div>
+          <div class="card stat">
+            <div class="stat-icon i-cam"><svg class="ico"><use href="#i-camera"/></svg></div>
+            <div class="stat-body">
+              <span class="stat-label">Worker (cámara)</span>
+              <span id="statWorker" class="stat-value">—</span>
+              <span id="statWorkerSub" class="stat-sub">detección YOLO</span>
+            </div>
+          </div>
+          <div class="card stat">
+            <div class="stat-icon i-curfew"><svg class="ico"><use href="#i-shield"/></svg></div>
+            <div class="stat-body">
+              <span class="stat-label">Toque de queda</span>
+              <span id="statCurfew" class="stat-value">—</span>
+              <span id="statCurfewSub" class="stat-sub">—</span>
+            </div>
+          </div>
+          <div class="card stat">
+            <div class="stat-icon i-alert"><svg class="ico"><use href="#i-bell"/></svg></div>
+            <div class="stat-body">
+              <span class="stat-label">Alertas hoy</span>
+              <span id="statToday" class="stat-value">0</span>
+              <span id="statTotal" class="stat-sub">0 en total</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h2>Última alerta</h2></div>
+            <div id="lastAlert" class="last-alert empty">Sin alertas todavía.</div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Actividad reciente</h2>
+              <button class="btn ghost sm" data-goto="historial">Ver todo</button>
+            </div>
+            <div id="recentList" class="recent-list"><div class="muted">Cargando…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- HISTORIAL ---------- -->
+      <section id="view-historial" class="view">
+        <div class="card">
+          <div class="card-head">
+            <h2>Historial de detecciones</h2>
+            <span id="histCount" class="badge"></span>
+          </div>
+          <div id="histGrid" class="hist-grid"><div class="muted">Cargando…</div></div>
+          <div class="center">
+            <button id="loadMore" class="btn ghost" hidden>Cargar más</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- CONFIGURACIÓN ---------- -->
+      <section id="view-config" class="view">
+        <form id="configForm" class="card form">
+          <div class="card-head"><h2>Configuración de vigilancia</h2></div>
+
+          <h3 class="form-section">Horario de toque de queda</h3>
+          <p class="muted form-hint">El sistema <strong>solo vigila y enciende la cámara</strong> dentro de
+            este horario; fuera de él, la cámara se apaga sola para ahorrar recursos. Puede cruzar la
+            medianoche (ej. de 22:00 a 04:00 del día siguiente).</p>
+          <div class="presets">
+            <span class="muted">Atajos:</span>
+            <button type="button" class="chip" data-start="22:00" data-end="04:00">Noche 22:00–04:00</button>
+            <button type="button" class="chip" data-start="18:00" data-end="06:00">18:00–06:00</button>
+            <button type="button" class="chip" data-start="00:00" data-end="23:59">Todo el día</button>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Hora de inicio</label>
+              <input type="time" name="curfew_start" required />
+            </div>
+            <div class="form-row">
+              <label>Hora de fin</label>
+              <input type="time" name="curfew_end" required />
+            </div>
+          </div>
+
+          <h3 class="form-section">Sensibilidad de la alerta</h3>
+          <div class="form-row">
+            <label>Confianza mínima para alertar</label>
+            <p class="muted form-hint">Qué tan segura debe estar la IA antes de avisar.
+              <strong>Más alto</strong> (ej. 95%) = menos falsas alarmas, pero podría no avisar de alguien poco
+              visible. <strong>Más bajo</strong> (ej. 75%) = avisa más, pero puede confundir objetos con personas.</p>
+            <div class="range-wrap">
+              <input type="range" name="conf_threshold" min="50" max="99" step="1" />
+              <output id="confOut">90%</output>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Frames de confirmación</label>
+              <p class="muted form-hint">Cuántos cuadros seguidos debe verse a la persona antes de alertar.
+                <strong>Más alto</strong> = menos falsas alarmas pero reacciona un poco más lento.
+                <strong>Más bajo</strong> = más rápido, más falsos positivos.</p>
+              <input type="number" name="confirm_frames" min="1" max="30" />
+            </div>
+            <div class="form-row">
+              <label>Enfriamiento entre alertas (segundos)</label>
+              <p class="muted form-hint">Tiempo de espera tras una alerta antes de mandar otra, para no recibir
+                muchos mensajes seguidos de la misma persona. <strong>Más alto</strong> = menos mensajes.
+                <strong>Más bajo</strong> = avisa más seguido.</p>
+              <input type="number" name="cooldown_seconds" min="0" max="3600" />
+            </div>
+          </div>
+
+          <h3 class="form-section">Cámara y rendimiento</h3>
+          <div class="form-row">
+            <label>¿Qué cámara usar?</label>
+            <p class="muted form-hint">Elige el tipo y abajo se completa la fuente. La <strong>webcam</strong> es la
+              de la laptop; la <strong>cámara IP</strong> es una cámara de red (Hikvision/Dahua) por URL RTSP.</p>
+            <select id="cameraMode">
+              <option value="0">Webcam principal (0)</option>
+              <option value="1">Webcam secundaria (1)</option>
+              <option value="2">Webcam 2</option>
+              <option value="ip">Cámara IP (RTSP / HTTP)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Fuente de cámara</label>
+            <p class="muted form-hint"><code>0</code>/<code>1</code> = índice de webcam. Para <strong>cámara IP</strong>
+              pega la URL. Hikvision: <code>rtsp://usuario:clave@IP:554/Streaming/Channels/101</code> ·
+              Dahua: <code>rtsp://usuario:clave@IP:554/cam/realmonitor?channel=1&amp;subtype=0</code></p>
+            <input type="text" name="video_source" placeholder="0  ·  o  rtsp://usuario:clave@192.168.1.64:554/..." />
+          </div>
+
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Modelo de IA (YOLO)</label>
+              <p class="muted form-hint">El “cerebro” que detecta personas. Elige por <strong>tamaño</strong>
+                (lo que más influye) y por <strong>versión</strong>:</p>
+              <ul class="model-help muted">
+                <li><strong>Tamaño:</strong> <code>n</code> nano = más rápido, menos preciso ·
+                  <code>s</code> small = equilibrio · <code>m</code> medium = más preciso, más lento.</li>
+                <li><strong>YOLO11</strong> — la más reciente y recomendada (mejor precisión con menos peso).</li>
+                <li><strong>YOLOv8</strong> — la más probada y estable de la industria; resultados muy parecidos.</li>
+                <li><strong>YOLOv10</strong> — sin “NMS” → inferencia más rápida; ideal si quieres más fluidez.</li>
+                <li>Para detectar <em>solo personas</em>, la versión influye poco; el tamaño y la resolución influyen más.</li>
+              </ul>
+              <select name="model">
+                <optgroup label="YOLO11 (recomendado · más reciente)">
+                  <option value="yolo11n.pt">yolo11n — rápido, CPU lenta</option>
+                  <option value="yolo11s.pt">yolo11s — ⭐ equilibrio (recomendado)</option>
+                  <option value="yolo11m.pt">yolo11m — máxima precisión (mejor con GPU)</option>
+                </optgroup>
+                <optgroup label="YOLOv8 (muy probado y estable)">
+                  <option value="yolov8n.pt">yolov8n — rápido</option>
+                  <option value="yolov8s.pt">yolov8s — equilibrio estable</option>
+                  <option value="yolov8m.pt">yolov8m — muy preciso, lento en CPU</option>
+                </optgroup>
+                <optgroup label="YOLOv10 (más rápido · sin NMS)">
+                  <option value="yolov10n.pt">yolov10n — el más fluido</option>
+                  <option value="yolov10s.pt">yolov10s — fluido y preciso</option>
+                  <option value="yolov10m.pt">yolov10m — preciso y eficiente</option>
+                </optgroup>
+              </select>
+              <p class="muted form-hint">Al elegir un modelo nuevo, se descarga solo la primera vez (unos MB).
+                Recomendado: <strong>yolo11s</strong> en CPU; <strong>yolo11m / yolov8m</strong> si tienes GPU.</p>
+            </div>
+            <div class="form-row">
+              <label>Resolución de análisis (imgsz)</label>
+              <p class="muted form-hint"><strong>Más alto</strong> (960) = detecta mejor a lo lejos pero más lento y
+                la cámara en vivo va más entrecortada. <strong>Más bajo</strong> (480) = más fluido, menos detalle.
+                640 es buen equilibrio.</p>
+              <input type="number" name="imgsz" min="160" max="1920" step="32" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Dispositivo de cómputo</label>
+            <p class="muted form-hint">Dónde corre la IA. <strong>Automático</strong> elige solo lo mejor disponible.
+              <strong>CPU</strong> = procesador (cualquier PC, más lento). <strong>GPU NVIDIA</strong> = mucho más
+              rápido, pero solo si tienes una tarjeta NVIDIA con CUDA instalado.</p>
+            <select name="device">
+              <option value="">Automático (recomendado)</option>
+              <option value="cpu">CPU — procesador (sin tarjeta gráfica)</option>
+              <option value="0">GPU NVIDIA (0) — la primera tarjeta</option>
+              <option value="1">GPU NVIDIA (1) — la segunda tarjeta</option>
+            </select>
+          </div>
+
+          <div class="toggles">
+            <label class="check"><input type="checkbox" name="night_enhance" />
+              <span>Mejora nocturna<br><small class="muted">aclara pasillos oscuros para detectar mejor de noche</small></span></label>
+            <label class="check"><input type="checkbox" name="send_crop" />
+              <span>Enviar recorte del cuerpo<br><small class="muted">adjunta un acercamiento de la persona, además de la foto completa</small></span></label>
+          </div>
+
+          <h3 class="form-section">Mensaje de la alerta (WhatsApp)</h3>
+          <div class="form-row">
+            <label>Texto que se envía</label>
+            <p class="muted form-hint">Personaliza el mensaje. Estas etiquetas se reemplazan solas:
+              <code>{personas}</code> <code>{confianza}</code> <code>{fecha}</code> <code>{hora}</code>.
+              Para <strong>negrita</strong> en WhatsApp, rodea el texto con asteriscos: <code>*texto*</code>.</p>
+            <textarea name="alert_message" rows="6"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <span id="configUpdated" class="muted"></span>
+            <button type="submit" class="btn primary">Guardar cambios</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ---------- NÚMEROS ---------- -->
+      <section id="view-numeros" class="view">
+        <div class="card">
+          <div class="card-head">
+            <h2>Números a notificar</h2>
+            <div style="display:flex;align-items:center;gap:10px">
+              <button id="verifyBtn" class="btn ghost sm">Verificar en WhatsApp</button>
+              <span id="recipCount" class="badge">0/4 activos</span>
+            </div>
+          </div>
+          <div id="recipList" class="recip-list"><div class="muted">Cargando…</div></div>
+        </div>
+
+        <form id="recipForm" class="card form">
+          <div class="card-head"><h2>Agregar número</h2></div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label>Número (con código de país)</label>
+              <input type="text" name="phone" placeholder="51XXXXXXXXX (código país + número)" required />
+            </div>
+            <div class="form-row">
+              <label>Etiqueta (opcional)</label>
+              <input type="text" name="label" placeholder="Vigilante turno noche" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary"><svg class="ico"><use href="#i-plus"/></svg> Agregar</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ---------- WHATSAPP ---------- -->
+      <section id="view-whatsapp" class="view">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h2>Conexiones de WhatsApp</h2>
+              <button id="waRefresh" class="btn ghost sm">Actualizar</button></div>
+            <div class="note">
+              El <strong>emisor</strong> es el WhatsApp que envía las alertas. Los que las
+              <strong>reciben</strong> van en la pestaña <em>Números</em>. Puedes tener varias
+              conexiones y elegir cuál es la emisora.
+            </div>
+
+            <div id="waList" class="wa-list"><span class="muted">Cargando…</span></div>
+
+            <div id="qrBox" class="qr-box" hidden></div>
+
+            <p class="muted" style="margin:6px 0">Una <strong>conexión</strong> = un teléfono que envía.
+              Pulsa Agregar y escanea el QR con ese teléfono.</p>
+            <form id="waAddForm" class="wa-add">
+              <input type="text" name="label" placeholder="nombre para reconocerla (ej: Vigilante tarde)" />
+              <button type="submit" class="btn primary"><svg class="ico"><use href="#i-plus"/></svg> Agregar otra conexión</button>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>Probar envío</h2></div>
+            <p class="muted">Envía un mensaje de prueba (desde el emisor) a todos los números activos.
+              Si uno sale en rojo, te dirá el motivo — lo más común es que ese número
+              <strong>no tenga WhatsApp</strong> o esté mal escrito.</p>
+            <div class="form-actions wrap">
+              <button id="testBtn" class="btn primary"><svg class="ico"><use href="#i-bolt"/></svg> Enviar prueba</button>
+            </div>
+            <div id="testResult" class="test-result"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- CÁMARA EN VIVO ---------- -->
+      <section id="view-camara" class="view">
+        <div class="card">
+          <div class="card-head">
+            <h2>Cámara en vivo · detección YOLO</h2>
+            <span id="camStatus" class="badge">—</span>
+          </div>
+          <div class="cam-wrap">
+            <img id="camFeed" alt="Cámara en vivo con detecciones" />
+            <div id="camOverlay" class="cam-overlay">
+              <div class="cam-overlay-box">
+                <svg class="ico cam-big"><use href="#i-camera"/></svg>
+                <strong>Sin señal de cámara</strong>
+                <span>Inicia la vigilancia para ver el video con las detecciones.</span>
+              </div>
+            </div>
+          </div>
+          <div class="cam-help">
+            <p class="muted">Aquí ves <strong>en tiempo real</strong> lo que detecta el sistema: las
+              cajas azules son personas, con su porcentaje de confianza. La barra superior muestra la
+              hora, el número de personas y el umbral de alerta.</p>
+            <p class="muted">Para encender la cámara, en otra ventana de <em>cmd</em> ejecuta:</p>
+            <pre class="code">.venv\Scripts\python.exe -m app.main run --test-minutes 30</pre>
+            <p class="muted">o deja la vigilancia normal corriendo durante el horario de toque de queda.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ================= MODAL / LIGHTBOX ================= -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-body">
+      <button class="modal-close" data-close>✕</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

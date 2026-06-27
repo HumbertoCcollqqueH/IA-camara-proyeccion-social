@@ -1,0 +1,30 @@
+# Secretos y entorno
+.env
+*.db
+
+# Entorno virtual de Python
+.venv/
+__pycache__/
+*.pyc
+
+# Evidencias y registros generados
+salidas_toque_queda/evidencias/*
+salidas_toque_queda/logs/*
+salidas_toque_queda/live/
+!salidas_toque_queda/evidencias/.gitkeep
+!salidas_toque_queda/logs/.gitkeep
+
+# Pesos de modelos (son grandes; se descargan solos)
+*.pt
+
+# Datos de Docker
+postgres_data/
+evolution_instances/
+
+# Herramientas / editor
+.claude/
+.vscode/
+.idea/
+*.log
+Thumbs.db
+.DS_Store

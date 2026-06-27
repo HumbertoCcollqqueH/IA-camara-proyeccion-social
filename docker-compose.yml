@@ -1,0 +1,103 @@
+# ===========================================================================
+#  Stack de infraestructura para la Vigilancia de Toque de Queda
+#  -------------------------------------------------------------------------
+#  Levanta tres servicios:
+#    - postgres       : base de datos (historial del sistema + datos Evolution)
+#    - redis          : cache que Evolution API necesita
+#    - evolution-api  : gateway de WhatsApp (envía texto e imágenes, gratis)
+#
+#  Uso:
+#    1) copia .env.example a .env y edítalo
+#    2) docker compose up -d
+#    3) abre el panel:  http://localhost:8080/manager
+#       (clave = EVOLUTION_API_KEY), crea la instancia y escanea el QR.
+#
+#  NOTA: el worker de detección (YOLO) NO va aquí porque necesita la cámara.
+#        En desarrollo corre en tu Windows con la webcam. En producción, con
+#        una cámara IP (RTSP), se puede contenerizar en la Fase 2.
+# ===========================================================================
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: vtq_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vigilancia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vigilancia}
+      POSTGRES_DB: ${POSTGRES_DB:-vigilancia}
+    command: postgres -c max_connections=200
+    ports:
+      - "5432:5432"           # expuesto para que el worker (en Windows) conecte
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vigilancia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [vtq_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: vtq_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [vtq_net]
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: vtq_evolution
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-cambia-esta-clave-larga-y-aleatoria}
+
+      # Base de datos (comparte el Postgres usando un schema propio)
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-vigilancia}:${POSTGRES_PASSWORD:-vigilancia}@postgres:5432/${POSTGRES_DB:-vigilancia}?schema=evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+
+      # Cache en Redis
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+
+      # Solo necesitamos la conexión por QR (Baileys / WhatsApp Web)
+      CONFIG_SESSION_PHONE_CLIENT: Vigilancia
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks: [vtq_net]
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_instances:
+
+networks:
+  vtq_net:
+    driver: bridge

@@ -1,0 +1,23 @@
+# ===========================================================================
+#  Vigilancia de Toque de Queda - dependencias del worker de detección
+#  Instala con:  pip install -r requirements.txt
+# ===========================================================================
+
+# Visión / IA
+ultralytics>=8.3,<9          # YOLO11
+opencv-python>=4.9
+numpy>=1.26
+
+# Envío de alertas (Evolution API es HTTP)
+requests>=2.31
+
+# Persistencia / historial en PostgreSQL
+SQLAlchemy>=2.0,<3
+psycopg2-binary>=2.9         # driver PostgreSQL
+
+# Configuración por variables de entorno (.env)
+python-dotenv>=1.0
+
+# Dashboard web (Fase 2)
+fastapi>=0.110
+uvicorn[standard]>=0.27
