@@ -43,6 +43,14 @@ class Config(Base):
     night_enhance: Mapped[bool] = mapped_column(Boolean, default=True)
     send_crop: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Modo de alerta: "persona" = una alerta por cada persona nueva (con ID,
+    # seguimiento ByteTrack); "presencia" = una alerta y enfriamiento.
+    alert_mode: Mapped[str] = mapped_column(String(16), default="persona")
+
+    # Ventana (ms) para analizar varios fotogramas de la persona y enviar el
+    # MEJOR (más nítido/completo). Solo modo "persona". 0 = enviar de inmediato.
+    capture_window_ms: Mapped[int] = mapped_column(Integer, default=2300)
+
     # Fuente de video: "0" = webcam; o una URL RTSP/HTTP de cámara IP.
     video_source: Mapped[str] = mapped_column(String(255), default="0")
 
@@ -51,8 +59,8 @@ class Config(Base):
         Text,
         default=(
             "*ALERTA — TOQUE DE QUEDA*\n"
-            "Persona detectada en la zona vigilada.\n"
-            "Personas: {personas}\n"
+            "Persona detectada{id} en la zona vigilada.\n"
+            "Personas en escena: {personas}\n"
             "Confianza: {confianza}\n"
             "Fecha: {fecha}\n"
             "Hora: {hora}"
@@ -83,6 +91,7 @@ class Detection(Base):
     detected_at: Mapped[dt.datetime] = mapped_column(DateTime, default=_now, index=True)
     persons: Mapped[int] = mapped_column(Integer, default=0)
     confidence_max: Mapped[float] = mapped_column(Float, default=0.0)
+    person_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # ID de seguimiento
 
     image_full: Mapped[str] = mapped_column(String(255), default="")   # frame anotado completo
     image_crop: Mapped[str] = mapped_column(String(255), default="")   # recorte del cuerpo top

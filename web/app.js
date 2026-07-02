@@ -183,7 +183,7 @@ function histCard(d) {
   return `<div class="hist-card">
     ${img ? `<img src="${img}" data-id="${d.id}" alt="">` : `<div class="muted" style="padding:20px">sin imagen</div>`}
     <div class="hc-body">
-      <div class="hc-time">${fmtDateTime(d.detected_at)}</div>
+      <div class="hc-time">${fmtDateTime(d.detected_at)} ${d.person_id != null ? `<span class="vbadge ok">ID ${d.person_id}</span>` : ""}</div>
       <div class="hc-row">
         <span>${d.persons} persona(s)</span>
         <span class="conf ${confClass(d.confidence_max)}">${pct(d.confidence_max)}</span>
@@ -219,6 +219,7 @@ async function openDetection(id) {
       <div>${full ? `<img src="${full}" alt="evidencia completa">` : "<div class='muted'>sin imagen</div>"}</div>
       <div>
         <div class="kv"><span>Fecha y hora</span><strong>${fmtDateTime(d.detected_at)}</strong></div>
+        ${d.person_id != null ? `<div class="kv"><span>ID de persona</span><strong>#${d.person_id}</strong></div>` : ""}
         <div class="kv"><span>Personas</span><strong>${d.persons}</strong></div>
         <div class="kv"><span>Confianza</span><strong class="conf ${confClass(d.confidence_max)}">${pct(d.confidence_max)}</strong></div>
         <div class="kv"><span>Notificación</span><strong>${d.notify_ok ? "enviada" : "no enviada"}</strong></div>
@@ -251,6 +252,8 @@ function fillConfigForm(c) {
   f.device.value = c.device || "";
   f.video_source.value = c.video_source || "0";
   f.alert_message.value = c.alert_message || "";
+  f.alert_mode.value = c.alert_mode || "persona";
+  f.capture_window_s.value = ((c.capture_window_ms ?? 2300) / 1000).toFixed(1);
   syncCameraMode(c.video_source || "0");
   f.night_enhance.checked = c.night_enhance;
   f.send_crop.checked = c.send_crop;
@@ -270,6 +273,18 @@ $("#cameraMode").addEventListener("change", (e) => {
   } else {
     f.video_source.value = e.target.value;
   }
+});
+$("#camTestBtn").addEventListener("click", async () => {
+  const btn = $("#camTestBtn"); const msg = $("#camTestMsg"); const thumb = $("#camTestThumb");
+  const source = $("#configForm").video_source.value.trim();
+  btn.disabled = true; btn.textContent = "Probando…"; msg.textContent = "Conectando…"; thumb.innerHTML = "";
+  try {
+    const r = await api("POST", "/api/camera/test", { source });
+    msg.innerHTML = `<span class="pill ${r.ok ? "ok" : "bad"}">${r.ok ? "✓" : "✕"} ${r.message}</span>`;
+    if (r.ok && r.thumb) thumb.innerHTML = `<img src="${r.thumb}" alt="prueba de cámara" class="cam-test-img">`;
+  } catch (e) {
+    msg.innerHTML = `<span class="pill bad">✕ ${e.message}</span>`;
+  } finally { btn.disabled = false; btn.textContent = "Probar cámara"; }
 });
 $("#configForm").conf_threshold.addEventListener("input", (e) => { $("#confOut").value = e.target.value + "%"; });
 $$("#configForm .chip").forEach((ch) => ch.addEventListener("click", () => {
@@ -293,6 +308,8 @@ $("#configForm").addEventListener("submit", async (e) => {
     device: f.device.value.trim(),
     video_source: f.video_source.value.trim() || "0",
     alert_message: f.alert_message.value,
+    alert_mode: f.alert_mode.value,
+    capture_window_ms: Math.round((parseFloat(f.capture_window_s.value) || 0) * 1000),
     night_enhance: f.night_enhance.checked,
     send_crop: f.send_crop.checked,
   };

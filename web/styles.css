@@ -261,6 +261,8 @@ body::before {
 .form input:focus, .form select:focus, .form textarea:focus { outline: none; border-color: var(--violet); box-shadow: 0 0 0 3px rgba(124,92,255,.25); }
 .model-help { margin: 0 0 10px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; line-height: 1.5; }
 .model-help li { font-size: 12.5px; }
+.cam-test-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.cam-test-img { margin-top: 10px; width: 100%; max-width: 380px; border-radius: var(--radius-sm); border: 1px solid var(--border); display: block; }
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 18px; }
 .range-wrap { display: flex; align-items: center; gap: 16px; }
 .range-wrap input[type=range] { flex: 1; -webkit-appearance: none; appearance: none; height: 7px; border-radius: 999px; background: linear-gradient(90deg, var(--violet), var(--cyan)); }

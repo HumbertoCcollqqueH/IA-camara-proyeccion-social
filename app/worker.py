@@ -52,6 +52,8 @@ class ConfigSnapshot:
     send_crop: bool
     video_source: str
     alert_message: str
+    alert_mode: str
+    capture_window_ms: int
 
 
 def _load_snapshot() -> tuple[ConfigSnapshot, list[str]]:
@@ -71,6 +73,8 @@ def _load_snapshot() -> tuple[ConfigSnapshot, list[str]]:
             send_crop=c.send_crop,
             video_source=c.video_source or "0",
             alert_message=c.alert_message or "",
+            alert_mode=(c.alert_mode or "persona"),
+            capture_window_ms=int(c.capture_window_ms or 0),
         )
         phones = [r.phone for r in active_recipients(s)]
     return snap, phones
@@ -78,23 +82,50 @@ def _load_snapshot() -> tuple[ConfigSnapshot, list[str]]:
 
 _DEFAULT_ALERT = (
     "*ALERTA — TOQUE DE QUEDA*\n"
-    "Persona detectada en la zona vigilada.\n"
-    "Personas: {personas}\n"
+    "Persona detectada{id} en la zona vigilada.\n"
+    "Personas en escena: {personas}\n"
     "Confianza: {confianza}\n"
     "Fecha: {fecha}\n"
     "Hora: {hora}"
 )
 
 
-def _build_message(template: str, now: dt.datetime, persons: int, conf: float) -> str:
+def _build_message(template: str, now: dt.datetime, persons: int, conf: float,
+                   person_id: int | None = None) -> str:
     """Sustituye los placeholders del mensaje (tolerante a llaves sueltas)."""
     tpl = template.strip() if template and template.strip() else _DEFAULT_ALERT
+    id_txt = f" (ID {person_id})" if person_id is not None else ""
     return (
         tpl.replace("{personas}", str(persons))
         .replace("{confianza}", f"{conf:.0%}")
         .replace("{fecha}", f"{now:%Y-%m-%d}")
         .replace("{hora}", f"{now:%H:%M:%S}")
+        .replace("{id}", id_txt)
     )
+
+
+def _best_score(clean, box, conf: float) -> float:
+    """Puntaje de calidad de un fotograma de la persona.
+
+    Combina: confianza de la IA (0.6) + nitidez del recorte (0.25, evita fotos
+    borrosas/movidas) + tamaño de la persona en el cuadro (0.15, 'más completa').
+    """
+    import cv2
+
+    try:
+        h, w = clean.shape[:2]
+        x1, y1, x2, y2 = box
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(w, x2), min(h, y2)
+        if x2 <= x1 or y2 <= y1:
+            return float(conf)
+        crop = clean[y1:y2, x1:x2]
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        sharp = min(1.0, cv2.Laplacian(gray, cv2.CV_64F).var() / 300.0)
+        size = min(1.0, ((x2 - x1) * (y2 - y1)) / float(w * h) / 0.30)
+        return 0.6 * float(conf) + 0.25 * sharp + 0.15 * size
+    except Exception:
+        return float(conf)
 
 
 def run_worker(test_minutes: int = 0, show: bool = True) -> None:
@@ -125,6 +156,7 @@ def run_worker(test_minutes: int = 0, show: bool = True) -> None:
     last_cfg_refresh = time.time()
     last_live = 0.0
     frames_processed = 0
+    tracked: dict[int, dict] = {}   # estado por ID de persona (modo "persona")
 
     with session_scope() as s:
         mark_worker_started(s)
@@ -193,34 +225,96 @@ def run_worker(test_minutes: int = 0, show: bool = True) -> None:
                 if key == ord("q"):
                     break
 
-            result = detector.infer(frame, predict_conf=0.25)
+            # ---- Detección según el modo ----
+            person_mode = snap.alert_mode == "persona"
+            if person_mode:
+                tr = detector.track(frame, predict_conf=0.25)
+                annotated, clean = tr.annotated, tr.clean
+                persons, conf_max = tr.persons, tr.conf_max
+            else:
+                result = detector.infer(frame, predict_conf=0.25)
+                annotated, clean = result.annotated, result.clean
+                persons, conf_max = result.persons, result.conf_max
             frames_processed += 1
 
             # Overlays informativos en el frame anotado.
             etiqueta = "PRUEBA" if test_deadline else "TOQUE DE QUEDA ACTIVO"
-            cv2.putText(result.annotated, f"{now:%Y-%m-%d %H:%M:%S}  Personas: {result.persons}",
+            cv2.putText(annotated, f"{now:%Y-%m-%d %H:%M:%S}  Personas: {persons}",
                         (15, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-            cv2.putText(result.annotated, f"{etiqueta}  (umbral {snap.conf_threshold:.0%})",
+            cv2.putText(annotated, f"{etiqueta}  (umbral {snap.conf_threshold:.0%})",
                         (15, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
             # Frame en vivo para el dashboard (throttle ~25 fps; el límite real
             # suele ser la velocidad de la detección en CPU).
             if time.time() - last_live >= 0.04:
-                _write_live(result.annotated, cv2)
+                _write_live(annotated, cv2)
                 last_live = time.time()
 
-            # Un frame "califica" si la mejor persona supera el umbral (ej. 90%).
-            qualifies = result.persons > 0 and result.conf_max >= snap.conf_threshold
-            consec = consec + 1 if qualifies else 0
-
             ahora = time.time()
-            if consec >= snap.confirm_frames and (ahora - last_alert) >= snap.cooldown_seconds:
-                _fire_alert(now, result, snap, phones, notifier, cv2)
-                last_alert = ahora
-                consec = 0
+            if person_mode:
+                win_s = snap.capture_window_ms / 1000.0
+                # 1) Personas visibles: confirmar ID y recolectar su MEJOR fotograma.
+                for p in tr.people:
+                    if p.track_id is None or p.conf < snap.conf_threshold:
+                        continue
+                    st = tracked.setdefault(p.track_id, {
+                        "frames": 0, "alerted": False, "last_seen": ahora,
+                        "collecting": False, "win_start": 0.0, "best": None,
+                    })
+                    st["frames"] += 1
+                    st["last_seen"] = ahora
+                    if st["alerted"]:
+                        continue
+                    if win_s <= 0:
+                        # Sin ventana: enviar de inmediato al confirmar.
+                        if st["frames"] >= snap.confirm_frames:
+                            _dispatch_alert(now, annotated, clean, p.box, persons, p.conf,
+                                            p.track_id, snap, phones, notifier, cv2)
+                            st["alerted"] = True
+                        continue
+                    # Con ventana: quedarnos solo con el mejor fotograma (en memoria).
+                    if not st["collecting"]:
+                        if st["frames"] >= snap.confirm_frames:
+                            st["collecting"] = True
+                            st["win_start"] = ahora
+                            st["best"] = {
+                                "score": _best_score(clean, p.box, p.conf), "conf": p.conf,
+                                "box": p.box, "persons": persons, "when": now,
+                                "annotated": annotated.copy(), "clean": clean.copy(),
+                            }
+                    else:
+                        sc = _best_score(clean, p.box, p.conf)
+                        if sc > st["best"]["score"]:
+                            st["best"] = {
+                                "score": sc, "conf": p.conf, "box": p.box,
+                                "persons": persons, "when": now,
+                                "annotated": annotated.copy(), "clean": clean.copy(),
+                            }
+                # 2) Cerrar ventanas cumplidas (aunque ya no se vea a la persona) y alertar.
+                for pid, st in tracked.items():
+                    if st.get("collecting") and not st["alerted"] and (ahora - st["win_start"]) >= win_s:
+                        b = st["best"]
+                        _dispatch_alert(b["when"], b["annotated"], b["clean"], b["box"],
+                                        b["persons"], b["conf"], pid, snap, phones, notifier, cv2)
+                        st["alerted"] = True
+                        st["collecting"] = False
+                        st["best"] = None  # liberar memoria
+                # 3) Olvidar IDs ausentes (permite re-alertar si la persona regresa).
+                gap = max(30, snap.cooldown_seconds)
+                for pid in [k for k, v in tracked.items() if ahora - v["last_seen"] > gap]:
+                    del tracked[pid]
+            else:
+                # Modo presencia: una alerta y luego enfriamiento.
+                qualifies = persons > 0 and conf_max >= snap.conf_threshold
+                consec = consec + 1 if qualifies else 0
+                if consec >= snap.confirm_frames and (ahora - last_alert) >= snap.cooldown_seconds:
+                    _dispatch_alert(now, annotated, clean, result.best_box, persons, conf_max,
+                                    None, snap, phones, notifier, cv2)
+                    last_alert = ahora
+                    consec = 0
 
             if show:
-                cv2.imshow("Vigilancia toque de queda", result.annotated)
+                cv2.imshow("Vigilancia toque de queda", annotated)
 
     except KeyboardInterrupt:
         log.info("Detenido por el usuario (Ctrl+C).")
@@ -264,46 +358,53 @@ def _heartbeat(capturing: bool, frames: int) -> None:
         log.debug("No se pudo actualizar el heartbeat: %s", e)
 
 
-def _fire_alert(now, result, snap, phones, notifier, cv2) -> None:
+def _dispatch_alert(now, annotated, clean, box, persons, conf, person_id,
+                    snap, phones, notifier, cv2) -> None:
+    """Guarda evidencia (frame + recorte + miniatura) y dispara la notificación.
+
+    Sirve para ambos modos: en 'persona' recibe la caja y el ID de esa persona;
+    en 'presencia' recibe la caja de mayor confianza y person_id=None.
+    """
     stamp = f"{now:%Y%m%d_%H%M%S}"
-    full_path = IMG_DIR / f"persona_{stamp}.jpg"
-    cv2.imwrite(str(full_path), result.annotated)
+    suffix = f"_id{person_id}" if person_id is not None else ""
+    full_path = IMG_DIR / f"persona_{stamp}{suffix}.jpg"
+    cv2.imwrite(str(full_path), annotated)
 
     crop_path = ""
     if snap.send_crop:
-        body = PersonDetector.crop_body(result.clean, result.best_box)
+        body = PersonDetector.crop_body(clean, box)
         if body is not None and body.size > 0:
-            crop_path = str(IMG_DIR / f"persona_{stamp}_crop.jpg")
+            crop_path = str(IMG_DIR / f"persona_{stamp}{suffix}_crop.jpg")
             cv2.imwrite(crop_path, body)
 
     # Miniatura para el historial del dashboard (a partir del frame anotado).
-    thumb_name = f"persona_{stamp}_thumb.jpg"
+    thumb_name = f"persona_{stamp}{suffix}_thumb.jpg"
     try:
-        h, w = result.annotated.shape[:2]
+        h, w = annotated.shape[:2]
         tw = 320
         th = max(1, int(h * tw / w))
-        thumb = cv2.resize(result.annotated, (tw, th), interpolation=cv2.INTER_AREA)
+        thumb = cv2.resize(annotated, (tw, th), interpolation=cv2.INTER_AREA)
         cv2.imwrite(str(IMG_DIR / thumb_name), thumb)
     except Exception:
         thumb_name = ""
 
-    text = _build_message(snap.alert_message, now, result.persons, result.conf_max)
+    text = _build_message(snap.alert_message, now, persons, conf, person_id)
     # Imagen a enviar: preferimos el recorte del cuerpo; si no, el frame completo.
     image_for_wa = crop_path or str(full_path)
 
-    log.info("ALERTA -> %s persona(s), conf %.0f%%. Notificando a %d número(s).",
-             result.persons, result.conf_max * 100, len(phones))
+    log.info("ALERTA -> persona%s, conf %.0f%%. Notificando a %d número(s).",
+             f" #{person_id}" if person_id is not None else "", conf * 100, len(phones))
 
     threading.Thread(
         target=_send_and_log,
-        args=(notifier, list(phones), text, image_for_wa, now, result.persons,
-              result.conf_max, full_path.name, crop_path, thumb_name),
+        args=(notifier, list(phones), text, image_for_wa, now, persons,
+              conf, full_path.name, crop_path, thumb_name, person_id),
         daemon=True,
     ).start()
 
 
 def _send_and_log(notifier, phones, text, image_for_wa, now, persons, conf,
-                  full_name, crop_path, thumb_name):
+                  full_name, crop_path, thumb_name, person_id=None):
     if phones and notifier.is_configured():
         # Enviar siempre desde la instancia EMISORA marcada en el dashboard.
         with session_scope() as s:
@@ -324,6 +425,7 @@ def _send_and_log(notifier, phones, text, image_for_wa, now, persons, conf,
                 detected_at=now,
                 persons=persons,
                 confidence_max=conf,
+                person_id=person_id,
                 image_full=full_name,
                 image_crop=crop_name,
                 image_thumb=thumb_name,

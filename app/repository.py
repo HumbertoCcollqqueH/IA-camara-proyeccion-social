@@ -41,6 +41,7 @@ def record_detection(
     image_crop: str,
     image_thumb: str,
     notify_result: dict[str, str],
+    person_id: int | None = None,
 ) -> Detection:
     """Guarda una alerta en el historial."""
     notify_ok = any(v == "ok" for v in notify_result.values())
@@ -48,6 +49,7 @@ def record_detection(
         detected_at=detected_at,
         persons=persons,
         confidence_max=confidence_max,
+        person_id=person_id,
         image_full=image_full,
         image_crop=image_crop,
         image_thumb=image_thumb,

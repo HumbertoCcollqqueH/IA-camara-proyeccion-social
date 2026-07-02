@@ -46,6 +46,7 @@ from .repository import (
     set_wa_sender,
 )
 from .schemas import (
+    CameraTestIn,
     ConfigOut,
     ConfigUpdate,
     DetectionOut,
@@ -137,6 +138,7 @@ def _detection_out(d: Detection) -> DetectionOut:
         id=d.id,
         detected_at=d.detected_at,
         persons=d.persons,
+        person_id=d.person_id,
         confidence_max=d.confidence_max,
         image_full=d.image_full,
         image_crop=d.image_crop,
@@ -195,6 +197,7 @@ def read_config() -> ConfigOut:
             confirm_frames=c.confirm_frames, cooldown_seconds=c.cooldown_seconds,
             night_enhance=c.night_enhance, send_crop=c.send_crop,
             video_source=c.video_source, alert_message=c.alert_message,
+            alert_mode=c.alert_mode, capture_window_ms=c.capture_window_ms,
             updated_at=c.updated_at,
         )
 
@@ -436,6 +439,65 @@ def camera_status() -> dict:
         age = time.time() - LIVE_PATH.stat().st_mtime
         return {"online": age < LIVE_FRESH_WINDOW, "age": round(age, 1)}
     return {"online": False, "age": None}
+
+
+def _probe_camera(source: str, timeout: float = 8.0) -> dict:
+    """Intenta abrir la fuente y leer un frame. Devuelve {ok, message, ...}."""
+    import base64
+
+    result = {"ok": False, "message": "", "width": 0, "height": 0, "thumb": ""}
+
+    def _work():
+        import cv2
+        # Limita el tiempo de espera de RTSP (evita cuelgues largos).
+        os.environ.setdefault(
+            "OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|stimeout;5000000"
+        )
+        cap = None
+        try:
+            src = int(source) if str(source).strip().isdigit() else source
+            backend = cv2.CAP_DSHOW if isinstance(src, int) else cv2.CAP_FFMPEG
+            cap = cv2.VideoCapture(src, backend)
+            if not cap.isOpened():
+                result["message"] = "No se pudo abrir la fuente (¿URL/índice o red incorrectos?)."
+                return
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                result["message"] = "Se abrió la fuente pero no llegó imagen."
+                return
+            h, w = frame.shape[:2]
+            result["width"], result["height"] = int(w), int(h)
+            tw = 360
+            th = max(1, int(h * tw / w))
+            small = cv2.resize(frame, (tw, th), interpolation=cv2.INTER_AREA)
+            okj, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if okj:
+                result["thumb"] = "data:image/jpeg;base64," + base64.b64encode(buf).decode()
+            result["ok"] = True
+            result["message"] = f"¡Conectó! Imagen recibida a {w}x{h}."
+        except Exception as e:  # noqa: BLE001
+            result["message"] = f"Error: {e}"
+        finally:
+            if cap is not None:
+                cap.release()
+
+    t = threading.Thread(target=_work, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        return {"ok": False, "message": "Tiempo agotado: la cámara/URL no respondió.",
+                "width": 0, "height": 0, "thumb": ""}
+    return result
+
+
+@app.post("/api/camera/test")
+def camera_test(body: CameraTestIn) -> dict:
+    """Prueba de conexión de la cámara (webcam o IP), para diagnóstico."""
+    source = (body.source or "").strip()
+    if not source:
+        with session_scope() as s:
+            source = get_config(s).video_source or "0"
+    return _probe_camera(source)
 
 
 @app.get("/api/camera/stream")

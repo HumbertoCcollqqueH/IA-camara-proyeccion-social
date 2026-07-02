@@ -25,6 +25,22 @@ class DetectionResult:
     clean: object           # frame procesado SIN cajas (para recortar)
 
 
+@dataclass
+class TrackedPerson:
+    track_id: int | None    # ID de seguimiento (persistente entre frames)
+    conf: float
+    box: tuple              # (x1, y1, x2, y2)
+
+
+@dataclass
+class TrackResult:
+    persons: int
+    conf_max: float
+    people: list            # lista de TrackedPerson
+    annotated: object
+    clean: object
+
+
 def enhance_night(frame, cv2):
     """Realza el contraste/luminosidad en pasillos oscuros (CLAHE en canal L)."""
     lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
@@ -70,6 +86,43 @@ class PersonDetector:
             persons=n,
             conf_max=conf_max,
             best_box=best_box,
+            annotated=r.plot(),
+            clean=proc,
+        )
+
+    def track(self, frame, predict_conf: float = 0.25) -> TrackResult:
+        """Como infer(), pero asigna un ID de seguimiento a cada persona.
+
+        Usa ByteTrack (integrado en Ultralytics) con persist=True para mantener
+        los IDs entre frames. Permite alertar una vez por cada persona nueva.
+        """
+        import cv2
+
+        proc = enhance_night(frame, cv2) if self.night_enhance else frame
+        results = self.model.track(
+            source=proc,
+            conf=predict_conf,
+            classes=[0],
+            imgsz=self.imgsz,
+            device=self.device,
+            persist=True,
+            tracker="bytetrack.yaml",
+            verbose=False,
+        )
+        r = results[0]
+        people: list[TrackedPerson] = []
+        for b in r.boxes:
+            tid = int(b.id.item()) if b.id is not None else None
+            people.append(TrackedPerson(
+                track_id=tid,
+                conf=float(b.conf.item()),
+                box=tuple(int(v) for v in b.xyxy[0].tolist()),
+            ))
+        conf_max = max((p.conf for p in people), default=0.0)
+        return TrackResult(
+            persons=len(people),
+            conf_max=conf_max,
+            people=people,
             annotated=r.plot(),
             clean=proc,
         )

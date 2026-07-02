@@ -11,8 +11,8 @@ _PHONE = re.compile(r"^\d{8,15}$")
 
 _DEFAULT_ALERT = (
     "*ALERTA — TOQUE DE QUEDA*\n"
-    "Persona detectada en la zona vigilada.\n"
-    "Personas: {personas}\n"
+    "Persona detectada{id} en la zona vigilada.\n"
+    "Personas en escena: {personas}\n"
     "Confianza: {confianza}\n"
     "Fecha: {fecha}\n"
     "Hora: {hora}"
@@ -36,6 +36,14 @@ class ConfigUpdate(BaseModel):
     send_crop: bool = True
     video_source: str = "0"
     alert_message: str = _DEFAULT_ALERT
+    alert_mode: str = "persona"
+    capture_window_ms: int = Field(2300, ge=0, le=10000)
+
+    @field_validator("alert_mode")
+    @classmethod
+    def _valid_mode(cls, v: str) -> str:
+        v = (v or "").strip().lower()
+        return v if v in ("persona", "presencia") else "persona"
 
     @field_validator("video_source")
     @classmethod
@@ -94,6 +102,7 @@ class DetectionOut(BaseModel):
     detected_at: dt.datetime
     persons: int
     confidence_max: float
+    person_id: int | None = None
     image_full: str
     image_crop: str
     image_thumb: str
@@ -124,6 +133,10 @@ class WhatsAppConnect(BaseModel):
     pairing_code: str = ""
     message: str = ""
     name: str = ""
+
+
+class CameraTestIn(BaseModel):
+    source: str = ""        # vacío = usar la fuente configurada
 
 
 class WhatsappInstanceIn(BaseModel):

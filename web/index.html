@@ -171,6 +171,23 @@
 
           <h3 class="form-section">Sensibilidad de la alerta</h3>
           <div class="form-row">
+            <label>Modo de alerta</label>
+            <p class="muted form-hint"><strong>Por cada persona nueva</strong>: sigue a cada persona con un
+              ID y envía una alerta (con su recorte) al aparecer; si llega otra persona, otra alerta al instante.
+              <strong>Por presencia</strong>: una sola alerta mientras haya gente y luego espera el enfriamiento.</p>
+            <select name="alert_mode">
+              <option value="persona">Por cada persona nueva (con ID) — recomendado</option>
+              <option value="presencia">Por presencia (una alerta + enfriamiento)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label>Ventana para elegir la mejor foto (segundos)</label>
+            <p class="muted form-hint">Solo en modo "por persona". Al aparecer alguien, analiza sus fotogramas
+              durante este tiempo y envía <strong>el mejor</strong> (más nítido y completo). La alerta se retrasa
+              como máximo ese tiempo. <strong>0</strong> = enviar de inmediato. Recomendado: 2.3</p>
+            <input type="number" name="capture_window_s" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-row">
             <label>Confianza mínima para alertar</label>
             <p class="muted form-hint">Qué tan segura debe estar la IA antes de avisar.
               <strong>Más alto</strong> (ej. 95%) = menos falsas alarmas, pero podría no avisar de alguien poco
@@ -216,6 +233,11 @@
               pega la URL. Hikvision: <code>rtsp://usuario:clave@IP:554/Streaming/Channels/101</code> ·
               Dahua: <code>rtsp://usuario:clave@IP:554/cam/realmonitor?channel=1&amp;subtype=0</code></p>
             <input type="text" name="video_source" placeholder="0  ·  o  rtsp://usuario:clave@192.168.1.64:554/..." />
+            <div class="cam-test-row">
+              <button type="button" id="camTestBtn" class="btn ghost sm">Probar cámara</button>
+              <span id="camTestMsg" class="muted"></span>
+            </div>
+            <div id="camTestThumb"></div>
           </div>
 
           <div class="form-grid">
@@ -284,7 +306,8 @@
           <div class="form-row">
             <label>Texto que se envía</label>
             <p class="muted form-hint">Personaliza el mensaje. Estas etiquetas se reemplazan solas:
-              <code>{personas}</code> <code>{confianza}</code> <code>{fecha}</code> <code>{hora}</code>.
+              <code>{personas}</code> <code>{confianza}</code> <code>{fecha}</code> <code>{hora}</code>
+              <code>{id}</code> (ID de la persona, en modo "por persona").
               Para <strong>negrita</strong> en WhatsApp, rodea el texto con asteriscos: <code>*texto*</code>.</p>
             <textarea name="alert_message" rows="6"></textarea>
           </div>
